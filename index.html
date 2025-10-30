@@ -3,48 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Washington Map – Points and Polygons</title>
+  <title>Washington Polygon Map</title>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
   <style>
     html, body { height: 100%; margin: 0; }
-    #app { height: 100%; position: relative; }
-    #map { position: fixed; inset: 0; }
-    #panel {
-      position: fixed; top: 0; right: 0; bottom: 0;
-      width: 380px; background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(3px); border-left: 1px solid #e7e7e7;
-      overflow: auto; padding: 14px 16px;
-      box-shadow: -6px 0 18px rgba(0,0,0,.06);
-    }
-    #panel h1 { margin: 6px 0 8px; font-size: 20px; }
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
-    th { cursor: pointer; user-select: none; background: #fafafa; position: sticky; top: 0; }
-    tr:hover td { background: #f7faff; }
-    @media (max-width: 1024px) { #panel { display: none; } }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
   </style>
 </head>
 <body>
-  <div id="app">
-    <div id="map"></div>
-    <aside id="panel">
-      <h1>Washington Interactive Map</h1>
-      <p>Displaying polygons and points from the assets folder.</p>
-      <div class="table-wrap">
-        <table id="featTable">
-          <thead>
-            <tr>
-              <th data-key="name">Name ▲▼</th>
-              <th data-key="value">Value ▲▼</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </aside>
-  </div>
+  <div id="map"></div>
   <script>
     mapboxgl.accessToken = 'pk.eyJ1IjoiZ2lydW13IiwiYSI6ImNtaGNsMnczejI4a2cybXB1b3h6dHBuaHkifQ.fO5Cyk2RL57zq0RKG8BDkg';
     const map = new mapboxgl.Map({
@@ -54,28 +22,6 @@
       zoom: 6
     });
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
-    const tbody = document.querySelector('#featTable tbody');
-    let rowsCache = [];
-    let sortState = { key: null, dir: 1 };
-    function renderTable(rows) {
-      tbody.innerHTML = rows.map(r =>
-        `<tr><td>${r.name}</td><td>${r.value}</td></tr>`
-      ).join('');
-    }
-    function sortBy(key) {
-      if (sortState.key === key) sortState.dir *= -1; else { sortState.key = key; sortState.dir = 1; }
-      rowsCache.sort((a, b) => {
-        const va = (a[key] ?? '').toString().toLowerCase();
-        const vb = (b[key] ?? '').toString().toLowerCase();
-        if (va < vb) return -1 * sortState.dir;
-        if (va > vb) return 1 * sortState.dir;
-        return 0;
-      });
-      renderTable(rowsCache);
-    }
-    document.querySelectorAll('#featTable thead th').forEach(th => {
-      th.addEventListener('click', () => sortBy(th.dataset.key));
-    });
     function bboxFromGeoJSON(gj) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       function scanCoords(coords) {
@@ -93,46 +39,41 @@
       if (gj.type === 'FeatureCollection') (gj.features || []).forEach(f => scanGeom(f.geometry));
       else if (gj.type === 'Feature') scanGeom(gj.geometry);
       else scanGeom(gj);
-      return [[minX, minY], [maxX, maxY]];
+      return [[minX, minY],[maxX, maxY]];
     }
     async function loadData() {
-      const polygons = await fetch('assets/map.geojson').then(r => r.json());
-      const points = await fetch('assets/my_points.geojson').then(r => r.json());
-      map.addSource('polygons', { type: 'geojson', data: polygons });
-      map.addSource('points', { type: 'geojson', data: points });
+      const map1 = await fetch('assets/map.geojson').then(r => r.json());
+      const map2 = await fetch('assets/map (1).geojson').then(r => r.json());
+      map.addSource('map1', { type: 'geojson', data: map1 });
+      map.addSource('map2', { type: 'geojson', data: map2 });
       map.addLayer({
-        id: 'poly-fill',
+        id: 'map1-fill',
         type: 'fill',
-        source: 'polygons',
-        paint: { 'fill-color': '#38bdf8', 'fill-opacity': 0.4 }
+        source: 'map1',
+        paint: { 'fill-color': '#60a5fa', 'fill-opacity': 0.45 }
       });
       map.addLayer({
-        id: 'poly-outline',
+        id: 'map1-outline',
         type: 'line',
-        source: 'polygons',
-        paint: { 'line-color': '#0ea5e9', 'line-width': 1.5 }
+        source: 'map1',
+        paint: { 'line-color': '#2563eb', 'line-width': 1.5 }
       });
       map.addLayer({
-        id: 'point-layer',
-        type: 'circle',
-        source: 'points',
-        paint: {
-          'circle-radius': 6,
-          'circle-color': '#ef4444',
-          'circle-opacity': 0.8,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 1
-        }
+        id: 'map2-fill',
+        type: 'fill',
+        source: 'map2',
+        paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.35 }
       });
-      const bb = bboxFromGeoJSON(polygons);
+      map.addLayer({
+        id: 'map2-outline',
+        type: 'line',
+        source: 'map2',
+        paint: { 'line-color': '#16a34a', 'line-width': 1.5 }
+      });
+      const bb = bboxFromGeoJSON(map1);
       if (isFinite(bb[0][0]) && isFinite(bb[0][1]) && isFinite(bb[1][0]) && isFinite(bb[1][1])) {
         map.fitBounds(bb, { padding: 40, duration: 0 });
       }
-      (points.features || []).forEach(f => {
-        const p = f.properties || {};
-        rowsCache.push({ name: p.name ?? '—', value: p.value ?? '' });
-      });
-      renderTable(rowsCache);
     }
     map.on('load', loadData);
   </script>
