@@ -1,1 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Web Map – Two Datasets + Sortable Table</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #app { height: 100%; position: relative; }
+    #map { position: fixed; inset: 0; }
+    #panel{
+      position: fixed; top:0; right:0; bottom:0;
+      width: 380px; background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(3px);
+      border-left: 1px solid #e7e7e7; overflow:auto; padding:14px 16px;
+      box-shadow: -6px 0 18px rgba(0,0,0,.06);
+    }
+    #panel h1{ margin: 6px 0 8px; font-size: 20px; }
+    .table-wrap{ overflow-x:auto; }
+    table{ width:100%; border-collapse:collapse; font-size:14px; }
+    th,td{ padding:8px 10px; border-bottom:1px solid #eee; text-align:left; }
+    th{ cursor:pointer; user-select:none; background:#fafafa; position:sticky; top:0; }
+    tr:hover td{ background:#f7faff; }
+    @media (max-width:1024px){ #panel{ display:none; } }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="map"></div>
+    <aside id="panel">
+      <h1>My Custom Web Map</h1>
+      <p>Two datasets visualized. Click a column to sort.</p>
+      <div class="table-wrap">
+        <table id="featTable">
+          <thead>
+            <tr>
+              <th data-key="id">ID ▲▼</th>
+              <th data-key="mag">Magnitude ▲▼</th>
+              <th data-key="date">Date ▲▼</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </aside>
+  </div>
+  <script>
+    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN_HERE';
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v11',
+      center: [138, 38],
+      zoom: 5.5
+    });
+    map.addControl(new mapboxgl.NavigationControl(), 'top-left');
+
+    const tbody = document.querySelector('#featTable tbody');
+    let rowsCache = [];
+    let sortState = { key: null, dir: 1 };
+
+    function renderTable(rows){
+      tbody.innerHTML = rows.map(r =>
+        `<tr><td>${r.id}</td><td>${r.mag}</td><td>${r.date}</td></tr>`
+      ).join('');
+    }
+    function sortBy(key){
+      if (sortState.key === key) sortState.dir *= -1; else { sortState.key = key; sortState.dir = 1; }
+      rowsCache.sort((a,b)=>{
+        const va = (a[key] ?? '').toString().toLowerCase();
+        const vb = (b[key] ?? '').toString().toLowerCase();
+        if (va < vb) return -1 * sortState.dir;
+        if (va > vb) return  1 * sortState.dir;
+        return 0;
+      });
+      renderTable(rowsCache);
+    }
+    document.querySelectorAll('#featTable thead th').forEach(th=>{
+      th.addEventListener('click', ()=> sortBy(th.dataset.key));
+    });
+
+    async function loadData(){
+      const eq = await fetch('assets/earthquakes.geojson').then(r=>r.json());
+      const jp = await fetch('assets/japan.json').then(r=>r.json());
+
+      map.addSource('earthquakes', { type: 'geojson', data: eq });
+      map.addSource('japan', { type: 'geojson', data: jp });
+
+      map.addLayer({
+        id: 'eq-points',
+        type: 'circle',
+        source: 'earthquakes',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#e11d48',
+          'circle-opacity': 0.75,
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 1
+        }
+      });
+
+      map.addLayer({
+        id: 'jp-fill',
+        type: 'fill',
+        source: 'japan',
+        paint: { 'fill-color': '#0ea5e9', 'fill-opacity': 0.35 }
+      });
+      map.addLayer({
+        id: 'jp-outline',
+        type: 'line',
+        source: 'japan',
+        paint: { 'line-color': '#0ea5e9', 'line-width': 1 }
+      });
+
+      try {
+        const bbox = turf.bbox(jp);
+        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, duration: 0 });
+      } catch(e){}
+
+      (eq.features || []).forEach(f=>{
+        const p = f.properties || {};
+        rowsCache.push({
+          id: p.id ?? '',
+          mag: (p.mag ?? '').toString(),
+          date: p.time ? new Date(p.time).toLocaleDateString('en-US') : ''
+        });
+      });
+      renderTable(rowsCache);
+    }
+
+    map.on('load', loadData);
+
+    const turfScript = document.createElement('script');
+    turfScript.src = 'https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js';
+    document.head.appendChild(turfScript);
+  </script>
+</body>
+</html>
 
