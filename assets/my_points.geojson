@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.33, 47.60]
+      },
+      "properties": {
+        "name": "Downtown Seattle",
+        "value": 10,
+        "info": "Sample point"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.30, 47.65]
+      },
+      "properties": {
+        "name": "University District",
+        "value": 8,
+        "info": "Sample point 2"
+      }
+    }
+  ]
+}

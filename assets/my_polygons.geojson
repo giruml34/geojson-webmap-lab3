@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.36, 47.58],
+          [-122.28, 47.58],
+          [-122.28, 47.63],
+          [-122.36, 47.63],
+          [-122.36, 47.58]
+        ]]
+      },
+      "properties": {
+        "name": "Central Seattle",
+        "value": 5,
+        "info": "Sample polygon"
+      }
+    }
+  ]
+}
