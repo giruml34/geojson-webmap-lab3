@@ -3,42 +3,41 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Web Map – Two Datasets + Sortable Table</title>
+  <title>Washington Map – Points and Polygons</title>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
   <style>
     html, body { height: 100%; margin: 0; }
     #app { height: 100%; position: relative; }
     #map { position: fixed; inset: 0; }
-    #panel{
-      position: fixed; top:0; right:0; bottom:0;
+    #panel {
+      position: fixed; top: 0; right: 0; bottom: 0;
       width: 380px; background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(3px);
-      border-left: 1px solid #e7e7e7; overflow:auto; padding:14px 16px;
+      backdrop-filter: blur(3px); border-left: 1px solid #e7e7e7;
+      overflow: auto; padding: 14px 16px;
       box-shadow: -6px 0 18px rgba(0,0,0,.06);
     }
-    #panel h1{ margin: 6px 0 8px; font-size: 20px; }
-    .table-wrap{ overflow-x:auto; }
-    table{ width:100%; border-collapse:collapse; font-size:14px; }
-    th,td{ padding:8px 10px; border-bottom:1px solid #eee; text-align:left; }
-    th{ cursor:pointer; user-select:none; background:#fafafa; position:sticky; top:0; }
-    tr:hover td{ background:#f7faff; }
-    @media (max-width:1024px){ #panel{ display:none; } }
+    #panel h1 { margin: 6px 0 8px; font-size: 20px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
+    th { cursor: pointer; user-select: none; background: #fafafa; position: sticky; top: 0; }
+    tr:hover td { background: #f7faff; }
+    @media (max-width: 1024px) { #panel { display: none; } }
   </style>
 </head>
 <body>
   <div id="app">
     <div id="map"></div>
     <aside id="panel">
-      <h1>My Custom Web Map</h1>
-      <p>Two datasets visualized. Click a column to sort.</p>
+      <h1>Washington Interactive Map</h1>
+      <p>Displaying polygons and points from the assets folder.</p>
       <div class="table-wrap">
         <table id="featTable">
           <thead>
             <tr>
-              <th data-key="id">ID ▲▼</th>
-              <th data-key="mag">Magnitude ▲▼</th>
-              <th data-key="date">Date ▲▼</th>
+              <th data-key="name">Name ▲▼</th>
+              <th data-key="value">Value ▲▼</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -47,94 +46,95 @@
     </aside>
   </div>
   <script>
-    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN_HERE';
+    mapboxgl.accessToken = 'pk.eyJ1IjoiZ2lydW13IiwiYSI6ImNtaGNsMnczejI4a2cybXB1b3h6dHBuaHkifQ.fO5Cyk2RL57zq0RKG8BDkg';
     const map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/light-v11',
-      center: [138, 38],
-      zoom: 5.5
+      center: [-120.5, 47.5],
+      zoom: 6
     });
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
-
     const tbody = document.querySelector('#featTable tbody');
     let rowsCache = [];
     let sortState = { key: null, dir: 1 };
-
-    function renderTable(rows){
+    function renderTable(rows) {
       tbody.innerHTML = rows.map(r =>
-        `<tr><td>${r.id}</td><td>${r.mag}</td><td>${r.date}</td></tr>`
+        `<tr><td>${r.name}</td><td>${r.value}</td></tr>`
       ).join('');
     }
-    function sortBy(key){
+    function sortBy(key) {
       if (sortState.key === key) sortState.dir *= -1; else { sortState.key = key; sortState.dir = 1; }
-      rowsCache.sort((a,b)=>{
+      rowsCache.sort((a, b) => {
         const va = (a[key] ?? '').toString().toLowerCase();
         const vb = (b[key] ?? '').toString().toLowerCase();
         if (va < vb) return -1 * sortState.dir;
-        if (va > vb) return  1 * sortState.dir;
+        if (va > vb) return 1 * sortState.dir;
         return 0;
       });
       renderTable(rowsCache);
     }
-    document.querySelectorAll('#featTable thead th').forEach(th=>{
-      th.addEventListener('click', ()=> sortBy(th.dataset.key));
+    document.querySelectorAll('#featTable thead th').forEach(th => {
+      th.addEventListener('click', () => sortBy(th.dataset.key));
     });
-
-    async function loadData(){
-      const eq = await fetch('assets/earthquakes.geojson').then(r=>r.json());
-      const jp = await fetch('assets/japan.json').then(r=>r.json());
-
-      map.addSource('earthquakes', { type: 'geojson', data: eq });
-      map.addSource('japan', { type: 'geojson', data: jp });
-
+    function bboxFromGeoJSON(gj) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      function scanCoords(coords) {
+        if (typeof coords[0] === 'number') {
+          const x = coords[0], y = coords[1];
+          if (x < minX) minX = x; if (y < minY) minY = y;
+          if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+        } else { for (const c of coords) scanCoords(c); }
+      }
+      function scanGeom(geom) {
+        if (!geom) return;
+        if (geom.type === 'GeometryCollection') (geom.geometries || []).forEach(scanGeom);
+        else scanCoords(geom.coordinates);
+      }
+      if (gj.type === 'FeatureCollection') (gj.features || []).forEach(f => scanGeom(f.geometry));
+      else if (gj.type === 'Feature') scanGeom(gj.geometry);
+      else scanGeom(gj);
+      return [[minX, minY], [maxX, maxY]];
+    }
+    async function loadData() {
+      const polygons = await fetch('assets/map.geojson').then(r => r.json());
+      const points = await fetch('assets/my_points.geojson').then(r => r.json());
+      map.addSource('polygons', { type: 'geojson', data: polygons });
+      map.addSource('points', { type: 'geojson', data: points });
       map.addLayer({
-        id: 'eq-points',
+        id: 'poly-fill',
+        type: 'fill',
+        source: 'polygons',
+        paint: { 'fill-color': '#38bdf8', 'fill-opacity': 0.4 }
+      });
+      map.addLayer({
+        id: 'poly-outline',
+        type: 'line',
+        source: 'polygons',
+        paint: { 'line-color': '#0ea5e9', 'line-width': 1.5 }
+      });
+      map.addLayer({
+        id: 'point-layer',
         type: 'circle',
-        source: 'earthquakes',
+        source: 'points',
         paint: {
           'circle-radius': 6,
-          'circle-color': '#e11d48',
-          'circle-opacity': 0.75,
-          'circle-stroke-color': '#fff',
+          'circle-color': '#ef4444',
+          'circle-opacity': 0.8,
+          'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 1
         }
       });
-
-      map.addLayer({
-        id: 'jp-fill',
-        type: 'fill',
-        source: 'japan',
-        paint: { 'fill-color': '#0ea5e9', 'fill-opacity': 0.35 }
-      });
-      map.addLayer({
-        id: 'jp-outline',
-        type: 'line',
-        source: 'japan',
-        paint: { 'line-color': '#0ea5e9', 'line-width': 1 }
-      });
-
-      try {
-        const bbox = turf.bbox(jp);
-        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, duration: 0 });
-      } catch(e){}
-
-      (eq.features || []).forEach(f=>{
+      const bb = bboxFromGeoJSON(polygons);
+      if (isFinite(bb[0][0]) && isFinite(bb[0][1]) && isFinite(bb[1][0]) && isFinite(bb[1][1])) {
+        map.fitBounds(bb, { padding: 40, duration: 0 });
+      }
+      (points.features || []).forEach(f => {
         const p = f.properties || {};
-        rowsCache.push({
-          id: p.id ?? '',
-          mag: (p.mag ?? '').toString(),
-          date: p.time ? new Date(p.time).toLocaleDateString('en-US') : ''
-        });
+        rowsCache.push({ name: p.name ?? '—', value: p.value ?? '' });
       });
       renderTable(rowsCache);
     }
-
     map.on('load', loadData);
-
-    const turfScript = document.createElement('script');
-    turfScript.src = 'https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js';
-    document.head.appendChild(turfScript);
   </script>
 </body>
 </html>
-
